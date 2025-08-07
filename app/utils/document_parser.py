@@ -5,7 +5,6 @@ import os
 from urllib.parse import urlparse
 
 async def download_file(url: str, local_path: str):
-    """Downloads a file from a URL to a local path."""
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status == 200:
@@ -15,28 +14,37 @@ async def download_file(url: str, local_path: str):
     return None
 
 def extract_text_from_pdf(file_path: str) -> str:
-    """Extracts text from a PDF file."""
     try:
         with open(file_path, 'rb') as file:
             reader = PyPDF2.PdfReader(file)
             text = ""
             for page in reader.pages:
-                text += page.extract_text() or ""
-            return text
+                page_text = page.extract_text() or ""
+                text += page_text
+                if len(text) > 1000:  # Flush to reduce memory
+                    yield text
+                    text = ""
+            if text:
+                yield text
     except Exception as e:
         raise Exception(f"Error extracting text from PDF: {str(e)}")
 
 def extract_text_from_docx(file_path: str) -> str:
-    """Extracts text from a DOCX file."""
     try:
         doc = docx.Document(file_path)
-        text = "\n".join([para.text for para in doc.paragraphs])
-        return text
+        text = ""
+        for para in doc.paragraphs:
+            para_text = para.text + "\n"
+            text += para_text
+            if len(text) > 1000:
+                yield text
+                text = ""
+        if text:
+            yield text
     except Exception as e:
         raise Exception(f"Error extracting text from DOCX: {str(e)}")
 
 async def parse_document(document_url: str) -> str:
-    """Parses a document from a URL, extracting text based on file type."""
     parsed_url = urlparse(document_url)
     file_extension = parsed_url.path.lower().split('.')[-1]
     if file_extension not in ['pdf', 'docx']:
@@ -47,10 +55,9 @@ async def parse_document(document_url: str) -> str:
         if not downloaded_path:
             raise Exception("Failed to download document")
         if file_extension == 'pdf':
-            text = extract_text_from_pdf(local_path)
+            return "".join(extract_text_from_pdf(local_path))
         elif file_extension == 'docx':
-            text = extract_text_from_docx(local_path)
-        return text
+            return "".join(extract_text_from_docx(local_path))
     finally:
         if os.path.exists(local_path):
             os.remove(local_path)

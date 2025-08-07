@@ -1,6 +1,4 @@
-from typing import List
-
-def split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 100) -> List[str]:
+def split_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> List[str]:
     """Splits text into chunks with specified size and overlap."""
     if not text:
         return []
