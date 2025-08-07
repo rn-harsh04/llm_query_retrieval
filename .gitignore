@@ -1,5 +1,5 @@
 *.pyc
-env
+.env
 __pycache__/
 temp_document.*
 test_openrouter.py
