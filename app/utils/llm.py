@@ -1,14 +1,34 @@
-def query_llm(query, context):
-    prompt = f"""You are a helpful assistant. Based on the policy document below, answer the user's question.
-Context:
-{context}
+from openai import OpenAI
+from app.config import Config
 
-Question: {query}
-Provide a concise and accurate answer with explanation."""
+class LLMProcessor:
+    def __init__(self):
+        self.client = OpenAI(
+            base_url=Config.OPENROUTER_BASE_URL,
+            api_key=Config.OPENROUTER_API_KEY
+        )
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
-    )
-    return response.choices[0].message["content"]
+    def parse_query(self, query: str, context: str) -> str:
+        """Parses a query using the LLM with provided context, returning a precise answer with rationale."""
+        prompt = f"""
+        You are an expert in insurance policy analysis. Given the following context from a policy document and a user query, provide a precise and accurate answer. Ensure the response is clear, concise, and includes a rationale for the answer.
+
+        Context: {context}
+
+        Query: {query}
+
+        Answer:
+        """
+        try:
+            completion = self.client.chat.completions.create(
+                model=Config.LLM_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                extra_headers={
+                    "HTTP-Referer": Config.SITE_URL,
+                    "X-Title": Config.SITE_NAME
+                },
+                extra_body={}
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            raise Exception(f"LLM processing failed: {str(e)}")
