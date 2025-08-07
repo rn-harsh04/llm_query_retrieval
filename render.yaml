@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: llm-query-retrieval
+    env: python
+    plan: free
+    region: us-east
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.api:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+    autoDeploy: true
