@@ -25,6 +25,15 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
         raise HTTPException(status_code=401, detail="Invalid token")
     return credentials.credentials
 
+@app.on_event("startup")
+async def warmup_model():
+    try:
+        vs = VectorSearch()
+        _ = vs.embed_text("warmup")
+        print("✅ Model warmed up")
+    except Exception as e:
+        print(f"⚠️ Warmup failed: {e}")
+
 @app.post("/hackrx/run", response_model=QueryResponse)
 async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
     db = get_db()
@@ -32,21 +41,21 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         vector_search = VectorSearch()
         llm_processor = LLMProcessor()
 
-        # Parse document
         document_text = await parse_document(request.documents)
         if not document_text:
             raise HTTPException(status_code=400, detail="Failed to parse document")
 
-        # Split into chunks
         chunks = split_text(document_text)
 
-        # Generate embeddings and index
+        # Stream index embeddings directly to Pinecone
         document_id = str(uuid.uuid4())
-        embeddings = [vector_search.embed_text(chunk) for chunk in chunks]
-        vector_search.index_document(document_id, chunks, embeddings)
+        embeddings = []
+        for chunk in chunks:
+            emb = vector_search.embed_text(chunk)
+            embeddings.append(emb)
+        vector_search.index_document(document_id, chunks)
         db.store_chunks(document_id, chunks, embeddings)
 
-        # Answer each question
         answers = []
         for question in request.questions:
             query_embedding = vector_search.embed_text(question)
@@ -60,3 +69,7 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
     finally:
         db.close()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}

@@ -2,12 +2,10 @@ from pinecone import Pinecone
 from app.config import Config
 import time
 
-# Lazy global model variable
-_model = None
+_model = None  # Lazy-loaded model
 
 class VectorSearch:
     def __init__(self):
-        """Initializes Pinecone for semantic search."""
         self.pc = Pinecone(api_key=Config.PINECONE_API_KEY, timeout=30)
         self.index_name = Config.PINECONE_INDEX_NAME
         retries = 3
@@ -27,28 +25,31 @@ class VectorSearch:
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
                     continue
-                raise Exception(f"Failed to connect to Pinecone after {retries} attempts: {str(e)}")
+                raise Exception(f"Failed to connect to Pinecone: {str(e)}")
 
     def _get_model(self):
-        """Load SentenceTransformer lazily to save memory."""
         global _model
         if _model is None:
             from sentence_transformers import SentenceTransformer
             _model = SentenceTransformer(Config.EMBEDDING_MODEL)
         return _model
 
-    def index_document(self, document_id: str, chunks: list, embeddings: list):
-        """Indexes document chunks with embeddings in Pinecone."""
-        vectors = [(f"{document_id}_{i}", embedding.tolist(), {"text": chunk})
-                   for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))]
-        self.index.upsert(vectors=vectors)
-
-    def search(self, query_embedding: list, top_k: int = 5) -> list:
-        """Performs semantic search and returns matching text chunks."""
-        results = self.index.query(vector=query_embedding.tolist(), top_k=top_k, include_metadata=True)
-        return [match["metadata"]["text"] for match in results["matches"]]
-
-    def embed_text(self, text: str) -> list:
-        """Generates embeddings for a text string."""
+    def embed_text(self, text: str):
         model = self._get_model()
         return model.encode(text, convert_to_numpy=True)
+
+    def index_document(self, document_id: str, chunks: list):
+        """Stream embeddings to Pinecone instead of holding all in RAM."""
+        vectors = []
+        for i, chunk in enumerate(chunks):
+            emb = self.embed_text(chunk)
+            vectors.append((f"{document_id}_{i}", emb.tolist(), {"text": chunk}))
+            if len(vectors) >= 20:  # batch upload
+                self.index.upsert(vectors=vectors)
+                vectors.clear()
+        if vectors:
+            self.index.upsert(vectors=vectors)
+
+    def search(self, query_embedding, top_k=5):
+        results = self.index.query(vector=query_embedding.tolist(), top_k=top_k, include_metadata=True)
+        return [match["metadata"]["text"] for match in results["matches"]]

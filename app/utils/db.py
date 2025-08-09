@@ -3,7 +3,6 @@ import os
 
 class Database:
     def __init__(self):
-        # Use DATABASE_URL from Render environment
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
@@ -20,11 +19,10 @@ class Database:
         self.conn.commit()
 
     def store_chunks(self, document_id: str, chunks: list, embeddings: list):
-        """Store chunks with embeddings as arrays."""
-        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
             self.cursor.execute(
                 "INSERT INTO document_chunks (document_id, chunk_text, embedding) VALUES (%s, %s, %s)",
-                (f"{document_id}_{i}", chunk, list(map(float, embedding)))
+                (f"{document_id}_{i}", chunk, list(map(float, emb)))
             )
         self.conn.commit()
 
@@ -39,7 +37,5 @@ class Database:
         self.cursor.close()
         self.conn.close()
 
-
 def get_db():
-    """Factory to create DB connection when needed."""
     return Database()
