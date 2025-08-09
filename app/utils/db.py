@@ -1,10 +1,8 @@
 import psycopg2
 import os
-from app.config import Config
 
 class Database:
     def __init__(self):
-        # Use DATABASE_URL from Render environment
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
@@ -36,4 +34,7 @@ class Database:
         self.cursor.close()
         self.conn.close()
 
-db = Database()
+
+def get_db():
+    """Factory to create DB connection when needed."""
+    return Database()

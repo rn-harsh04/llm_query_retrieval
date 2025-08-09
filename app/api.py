@@ -7,7 +7,7 @@ from app.utils.document_parser import parse_document
 from app.utils.text_splitter import split_text
 from app.utils.search import VectorSearch
 from app.utils.llm import LLMProcessor
-from app.utils.db import db
+from app.utils.db import get_db
 
 app = FastAPI()
 security = HTTPBearer()
@@ -20,7 +20,6 @@ class QueryResponse(BaseModel):
     answers: List[str]
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
-    """Verifies the Bearer token."""
     expected_token = "898075d0812fb3570314b282ad2c4dbed819c0413f21a2dc54f74a3f8e061b3c"
     if credentials.credentials != expected_token:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -28,7 +27,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
 
 @app.post("/hackrx/run", response_model=QueryResponse)
 async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
-    """Processes document and questions, returning answers with rationale."""
+    db = get_db()
     try:
         vector_search = VectorSearch()
         llm_processor = LLMProcessor()
@@ -38,16 +37,16 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         if not document_text:
             raise HTTPException(status_code=400, detail="Failed to parse document")
 
-        # Split text into chunks
+        # Split into chunks
         chunks = split_text(document_text)
 
-        # Generate embeddings and index dynamically
+        # Generate embeddings and index
         document_id = str(uuid.uuid4())
         embeddings = [vector_search.embed_text(chunk) for chunk in chunks]
         vector_search.index_document(document_id, chunks, embeddings)
         db.store_chunks(document_id, chunks, embeddings)
 
-        # Process each question
+        # Answer each question
         answers = []
         for question in request.questions:
             query_embedding = vector_search.embed_text(question)

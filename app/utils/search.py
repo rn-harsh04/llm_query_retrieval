@@ -1,10 +1,9 @@
 from pinecone import Pinecone
 from app.config import Config
-from sentence_transformers import SentenceTransformer
 import time
 
-# Load model globally to share memory across requests
-model = SentenceTransformer(Config.EMBEDDING_MODEL)
+# Lazy global model variable
+_model = None
 
 class VectorSearch:
     def __init__(self):
@@ -29,7 +28,14 @@ class VectorSearch:
                     time.sleep(2 ** attempt)
                     continue
                 raise Exception(f"Failed to connect to Pinecone after {retries} attempts: {str(e)}")
-        self.model = model  # Use global model
+
+    def _get_model(self):
+        """Load SentenceTransformer lazily to save memory."""
+        global _model
+        if _model is None:
+            from sentence_transformers import SentenceTransformer
+            _model = SentenceTransformer(Config.EMBEDDING_MODEL)
+        return _model
 
     def index_document(self, document_id: str, chunks: list, embeddings: list):
         """Indexes document chunks with embeddings in Pinecone."""
@@ -44,4 +50,5 @@ class VectorSearch:
 
     def embed_text(self, text: str) -> list:
         """Generates embeddings for a text string."""
-        return self.model.encode(text, convert_to_numpy=True)
+        model = self._get_model()
+        return model.encode(text, convert_to_numpy=True)
