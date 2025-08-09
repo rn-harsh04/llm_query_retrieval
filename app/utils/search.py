@@ -8,7 +8,7 @@ class VectorSearch:
         self.url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self.model_name}"
         self.headers = {"Authorization": f"Bearer {self.hf_api_key}"}
 
-    def embed(self, text: str):
+    def embed_text(self, text: str):
         payload = {"inputs": text}
         response = requests.post(self.url, headers=self.headers, json=payload, timeout=20)
         if response.status_code != 200:
