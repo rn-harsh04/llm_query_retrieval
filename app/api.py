@@ -7,6 +7,7 @@ from app.utils.document_parser import parse_document
 from app.utils.text_splitter import split_text
 from app.utils.search import VectorSearch
 from app.utils.llm import LLMProcessor
+from app.utils.db import db
 
 app = FastAPI()
 security = HTTPBearer()
@@ -29,7 +30,6 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
 async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
     """Processes document and questions, returning answers with rationale."""
     try:
-        # Initialize components
         vector_search = VectorSearch()
         llm_processor = LLMProcessor()
 
@@ -41,10 +41,11 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         # Split text into chunks
         chunks = split_text(document_text)
 
-        # Generate embeddings and index
+        # Generate embeddings and index dynamically
         document_id = str(uuid.uuid4())
         embeddings = [vector_search.embed_text(chunk) for chunk in chunks]
         vector_search.index_document(document_id, chunks, embeddings)
+        db.store_chunks(document_id, chunks, embeddings)
 
         # Process each question
         answers = []
@@ -58,3 +59,5 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         return QueryResponse(answers=answers)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+    finally:
+        db.close()
