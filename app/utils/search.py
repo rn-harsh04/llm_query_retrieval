@@ -2,7 +2,7 @@ from pinecone import Pinecone
 from app.config import Config
 import time
 
-_model = None  # Lazy-loaded model
+_model = None
 
 class VectorSearch:
     def __init__(self):
@@ -25,7 +25,7 @@ class VectorSearch:
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
                     continue
-                raise Exception(f"Failed to connect to Pinecone: {str(e)}")
+                raise Exception(f"Pinecone connection failed: {e}")
 
     def _get_model(self):
         global _model
@@ -39,16 +39,16 @@ class VectorSearch:
         return model.encode(text, convert_to_numpy=True)
 
     def index_document(self, document_id: str, chunks: list):
-        """Stream embeddings to Pinecone instead of holding all in RAM."""
-        vectors = []
+        """Stream embeddings in batches to save memory"""
+        batch = []
         for i, chunk in enumerate(chunks):
             emb = self.embed_text(chunk)
-            vectors.append((f"{document_id}_{i}", emb.tolist(), {"text": chunk}))
-            if len(vectors) >= 20:  # batch upload
-                self.index.upsert(vectors=vectors)
-                vectors.clear()
-        if vectors:
-            self.index.upsert(vectors=vectors)
+            batch.append((f"{document_id}_{i}", emb.tolist(), {"text": chunk}))
+            if len(batch) >= 20:
+                self.index.upsert(vectors=batch)
+                batch.clear()
+        if batch:
+            self.index.upsert(vectors=batch)
 
     def search(self, query_embedding, top_k=5):
         results = self.index.query(vector=query_embedding.tolist(), top_k=top_k, include_metadata=True)

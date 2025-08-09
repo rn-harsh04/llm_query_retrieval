@@ -5,7 +5,7 @@ class Database:
     def __init__(self):
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            raise ValueError("DATABASE_URL environment variable not set")
+            raise ValueError("DATABASE_URL env not set")
         self.conn = psycopg2.connect(database_url)
         self.cursor = self.conn.cursor()
         self.cursor.execute("""

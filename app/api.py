@@ -20,7 +20,7 @@ class QueryResponse(BaseModel):
     answers: List[str]
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
-    expected_token = "898075d0812fb3570314b282ad2c4dbed819c0413f21a2dc54f74a3f8e061b3c"
+    expected_token = "898075d0812fb3570314b282ad2c4dbed819c0413f21a2dc54f74a3f8e061b3c"  # replace if needed
     if credentials.credentials != expected_token:
         raise HTTPException(status_code=401, detail="Invalid token")
     return credentials.credentials
@@ -41,13 +41,15 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         vector_search = VectorSearch()
         llm_processor = LLMProcessor()
 
+        # 1. Parse document
         document_text = await parse_document(request.documents)
         if not document_text:
             raise HTTPException(status_code=400, detail="Failed to parse document")
 
+        # 2. Split into chunks
         chunks = split_text(document_text)
 
-        # Stream index embeddings directly to Pinecone
+        # 3. Index in Pinecone + store in DB
         document_id = str(uuid.uuid4())
         embeddings = []
         for chunk in chunks:
@@ -56,6 +58,7 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         vector_search.index_document(document_id, chunks)
         db.store_chunks(document_id, chunks, embeddings)
 
+        # 4. Answer questions
         answers = []
         for question in request.questions:
             query_embedding = vector_search.embed_text(question)
