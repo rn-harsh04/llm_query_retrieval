@@ -20,59 +20,44 @@ class QueryResponse(BaseModel):
     answers: List[str]
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
-    expected_token = "898075d0812fb3570314b282ad2c4dbed819c0413f21a2dc54f74a3f8e061b3c"  # replace if needed
+    expected_token = "898075d0812fb3570314b282ad2c4dbed819c0413f21a2dc54f74a3f8e061b3c"
     if credentials.credentials != expected_token:
         raise HTTPException(status_code=401, detail="Invalid token")
     return credentials.credentials
 
-@app.on_event("startup")
-async def warmup_model():
-    try:
-        vs = VectorSearch()
-        _ = vs.embed_text("warmup")
-        print("✅ Model warmed up")
-    except Exception as e:
-        print(f"⚠️ Warmup failed: {e}")
-
 @app.post("/hackrx/run", response_model=QueryResponse)
 async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
-    db = get_db()
     try:
-        vector_search = VectorSearch()
-        llm_processor = LLMProcessor()
-
-        # 1. Parse document
         document_text = await parse_document(request.documents)
         if not document_text:
             raise HTTPException(status_code=400, detail="Failed to parse document")
 
-        # 2. Split into chunks
         chunks = split_text(document_text)
-
-        # 3. Index in Pinecone + store in DB
         document_id = str(uuid.uuid4())
-        embeddings = []
-        for chunk in chunks:
-            emb = vector_search.embed_text(chunk)
-            embeddings.append(emb)
-        vector_search.index_document(document_id, chunks)
-        db.store_chunks(document_id, chunks, embeddings)
 
-        # 4. Answer questions
+        vector_search = VectorSearch()
+        llm_processor = LLMProcessor()
+        db = get_db()
+
+        # Store & index chunk-by-chunk to save memory
+        for i, chunk in enumerate(chunks):
+            emb = vector_search.embed_text(chunk)
+            vector_search.index_document_stream(document_id, [chunk])
+            db.store_chunk(f"{document_id}_{i}", chunk, emb)
+
         answers = []
         for question in request.questions:
             query_embedding = vector_search.embed_text(question)
             context_chunks = vector_search.search(query_embedding, top_k=5)
             context = " ".join(context_chunks)
-            answer = llm_processor.parse_query(question, context)
-            answers.append(answer)
+            answers.append(llm_processor.parse_query(question, context))
 
+        db.close()
         return QueryResponse(answers=answers)
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
-    finally:
-        db.close()
 
 @app.get("/health")
-async def health_check():
+async def health():
     return {"status": "ok"}

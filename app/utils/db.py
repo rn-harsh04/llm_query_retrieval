@@ -5,7 +5,7 @@ class Database:
     def __init__(self):
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            raise ValueError("DATABASE_URL env not set")
+            raise ValueError("DATABASE_URL not set")
         self.conn = psycopg2.connect(database_url)
         self.cursor = self.conn.cursor()
         self.cursor.execute("""
@@ -18,20 +18,12 @@ class Database:
         """)
         self.conn.commit()
 
-    def store_chunks(self, document_id: str, chunks: list, embeddings: list):
-        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            self.cursor.execute(
-                "INSERT INTO document_chunks (document_id, chunk_text, embedding) VALUES (%s, %s, %s)",
-                (f"{document_id}_{i}", chunk, list(map(float, emb)))
-            )
-        self.conn.commit()
-
-    def get_chunks(self, document_id: str):
+    def store_chunk(self, doc_id: str, chunk: str, embedding):
         self.cursor.execute(
-            "SELECT chunk_text FROM document_chunks WHERE document_id LIKE %s",
-            (f"{document_id}%",)
+            "INSERT INTO document_chunks (document_id, chunk_text, embedding) VALUES (%s, %s, %s)",
+            (doc_id, chunk, list(map(float, embedding)))
         )
-        return [row[0] for row in self.cursor.fetchall()]
+        self.conn.commit()
 
     def close(self):
         self.cursor.close()

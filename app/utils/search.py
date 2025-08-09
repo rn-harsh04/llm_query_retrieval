@@ -2,7 +2,7 @@ from pinecone import Pinecone
 from app.config import Config
 import time
 
-_model = None
+_model = None  # Lazy-loaded
 
 class VectorSearch:
     def __init__(self):
@@ -12,7 +12,7 @@ class VectorSearch:
         for attempt in range(retries):
             try:
                 indexes = self.pc.list_indexes().get("indexes", [])
-                if self.index_name not in [index["name"] for index in indexes]:
+                if self.index_name not in [i["name"] for i in indexes]:
                     self.pc.create_index(
                         name=self.index_name,
                         dimension=384,
@@ -25,7 +25,7 @@ class VectorSearch:
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
                     continue
-                raise Exception(f"Pinecone connection failed: {e}")
+                raise Exception(f"Pinecone connect failed: {e}")
 
     def _get_model(self):
         global _model
@@ -35,11 +35,9 @@ class VectorSearch:
         return _model
 
     def embed_text(self, text: str):
-        model = self._get_model()
-        return model.encode(text, convert_to_numpy=True)
+        return self._get_model().encode(text, convert_to_numpy=True)
 
-    def index_document(self, document_id: str, chunks: list):
-        """Stream embeddings in batches to save memory"""
+    def index_document_stream(self, document_id: str, chunks: list):
         batch = []
         for i, chunk in enumerate(chunks):
             emb = self.embed_text(chunk)
