@@ -9,16 +9,15 @@ class LLMProcessor:
         )
 
     def parse_query(self, query: str, context: str) -> str:
-        """Parses a query using the LLM with provided context, returning a precise answer with rationale."""
         prompt = f"""
-        You are an expert in insurance policy analysis. Given the following context from a policy document and a user query, provide a precise and accurate answer. Ensure the response is clear, concise, and includes a rationale for the answer.
+You are an expert in insurance policy analysis. Given the following context from a policy document and a user query, provide a precise and accurate answer. Ensure the response is clear, concise, and includes a rationale for the answer.
 
-        Context: {context}
+Context: {context}
 
-        Query: {query}
+Query: {query}
 
-        Answer:
-        """
+Answer:
+"""
         try:
             completion = self.client.chat.completions.create(
                 model=Config.LLM_MODEL,
