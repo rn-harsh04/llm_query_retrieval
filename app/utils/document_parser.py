@@ -19,28 +19,16 @@ def extract_text_from_pdf(file_path: str) -> str:
             reader = PyPDF2.PdfReader(file)
             text = ""
             for page in reader.pages:
-                page_text = page.extract_text() or ""
-                text += page_text
-                if len(text) > 1000:  # Flush to reduce memory
-                    yield text
-                    text = ""
-            if text:
-                yield text
+                text += page.extract_text() or ""
+            return text
     except Exception as e:
         raise Exception(f"Error extracting text from PDF: {str(e)}")
 
 def extract_text_from_docx(file_path: str) -> str:
     try:
         doc = docx.Document(file_path)
-        text = ""
-        for para in doc.paragraphs:
-            para_text = para.text + "\n"
-            text += para_text
-            if len(text) > 1000:
-                yield text
-                text = ""
-        if text:
-            yield text
+        text = "\n".join([para.text for para in doc.paragraphs])
+        return text
     except Exception as e:
         raise Exception(f"Error extracting text from DOCX: {str(e)}")
 
@@ -55,9 +43,10 @@ async def parse_document(document_url: str) -> str:
         if not downloaded_path:
             raise Exception("Failed to download document")
         if file_extension == 'pdf':
-            return "".join(extract_text_from_pdf(local_path))
+            text = extract_text_from_pdf(local_path)
         elif file_extension == 'docx':
-            return "".join(extract_text_from_docx(local_path))
+            text = extract_text_from_docx(local_path)
+        return text
     finally:
         if os.path.exists(local_path):
             os.remove(local_path)

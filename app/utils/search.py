@@ -3,9 +3,12 @@ from app.config import Config
 from sentence_transformers import SentenceTransformer
 import time
 
+# Load model globally to share memory across requests
+model = SentenceTransformer(Config.EMBEDDING_MODEL)
+
 class VectorSearch:
     def __init__(self):
-        """Initializes Pinecone and SentenceTransformer for semantic search."""
+        """Initializes Pinecone for semantic search."""
         self.pc = Pinecone(api_key=Config.PINECONE_API_KEY, timeout=30)
         self.index_name = Config.PINECONE_INDEX_NAME
         retries = 3
@@ -26,7 +29,7 @@ class VectorSearch:
                     time.sleep(2 ** attempt)
                     continue
                 raise Exception(f"Failed to connect to Pinecone after {retries} attempts: {str(e)}")
-        self.model = SentenceTransformer(Config.EMBEDDING_MODEL)
+        self.model = model  # Use global model
 
     def index_document(self, document_id: str, chunks: list, embeddings: list):
         """Indexes document chunks with embeddings in Pinecone."""
