@@ -25,6 +25,15 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
         raise HTTPException(status_code=401, detail="Invalid token")
     return credentials.credentials
 
+@app.on_event("startup")
+async def startup_event():
+    """Load heavy resources once at startup."""
+    app.state.vector_search = VectorSearch()
+    # Preload model
+    _ = app.state.vector_search.embed_text("warmup " * 50)  
+    app.state.llm_processor = LLMProcessor()
+    print("✅ Model and Pinecone ready")
+
 @app.post("/hackrx/run", response_model=QueryResponse)
 async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
     try:
@@ -35,11 +44,10 @@ async def run_query(request: QueryRequest, token: str = Depends(verify_token)):
         chunks = split_text(document_text)
         document_id = str(uuid.uuid4())
 
-        vector_search = VectorSearch()
-        llm_processor = LLMProcessor()
+        vector_search = app.state.vector_search
+        llm_processor = app.state.llm_processor
         db = get_db()
 
-        # Store & index chunk-by-chunk to save memory
         for i, chunk in enumerate(chunks):
             emb = vector_search.embed_text(chunk)
             vector_search.index_document_stream(document_id, [chunk])
